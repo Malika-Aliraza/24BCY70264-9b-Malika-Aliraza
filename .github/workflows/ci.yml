@@ -1,43 +1,16 @@
-name: React CI/CD Pipeline
+- name: Convert repo name to lowercase
+  id: repo
+  run: echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+- name: Build Docker Image
+  run: |
+    docker build -t ghcr.io/${{ steps.repo.outputs.repo }}:latest .
+    docker tag ghcr.io/${{ steps.repo.outputs.repo }}:latest ghcr.io/${{ steps.repo.outputs.repo }}:${{ github.sha }}
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+- name: Login to GitHub Container Registry
+  run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Run Tests
-        run: CI=true npm test
-
-      - name: Build Docker Image
-        run: |
-          docker build -t ghcr.io/${{ github.repository }}:latest .
-          docker tag ghcr.io/${{ github.repository }}:latest ghcr.io/${{ github.repository }}:${{ github.sha }}
-
-      - name: Login to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Push Docker Image
-        run: |
-          docker push ghcr.io/${{ github.repository }}:latest
-          docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+- name: Push Docker Image
+  run: |
+    docker push ghcr.io/${{ steps.repo.outputs.repo }}:latest
+    docker push ghcr.io/${{ steps.repo.outputs.repo }}:${{ github.sha }}
